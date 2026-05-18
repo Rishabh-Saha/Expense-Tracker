@@ -35,5 +35,3 @@ export const MODELS = [
 ];
 
 export const DEFAULT_MODEL_ID = 'claude-sonnet';
-// PDF parsing always uses Claude — used when selected model is OpenAI
-export const PDF_CLAUDE_FALLBACK = 'claude-haiku-4-5-20251001';

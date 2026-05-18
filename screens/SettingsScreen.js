@@ -213,7 +213,7 @@ export default function SettingsScreen() {
         {/* Note about PDF parsing for OpenAI users */}
         {MODELS.find(m => m.id === selectedModelId)?.provider === 'openai' && (
           <Text style={styles.modelNote}>
-            PDF extraction always uses Claude (Haiku) — OpenAI doesn't accept PDF files directly. Anthropic key still required for uploads.
+            PDF extraction uses your selected OpenAI model. Anthropic key is only needed if you switch to a Claude model.
           </Text>
         )}
 
