@@ -14,25 +14,13 @@ import {
   createChatSession, saveChatMessage, getChatSessions, getChatMessages, deleteChatSession,
 } from '../lib/database';
 import { useFeatures } from '../lib/FeatureContext';
-import { getApiKey } from '../lib/apiKey';
-
-async function callClaude(system, messages) {
-  const apiKey = await getApiKey();
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: 'claude-opus-4-7', max_tokens: 1024, system, messages }),
-  });
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message ?? `API error ${res.status}`); }
-  const data = await res.json();
-  return data.content?.[0]?.text ?? '';
-}
+import { callAI } from '../lib/aiClient';
 
 async function generateTips(prompt) {
   const system = `You are a personal finance advisor. Give exactly 5 specific, actionable spending-reduction tips.
 Return ONLY a raw JSON array (no markdown):
 [{"category":"Food & Dining","title":"Short actionable title","detail":"2-3 sentences with specific numbers","estimatedSaving":80}]`;
-  const text = await callClaude(system, [{ role: 'user', content: prompt }]);
+  const text = await callAI(system, [{ role: 'user', content: prompt }]);
   const stripped = text.replace(/\`\`\`(?:json)?\s*/gi, '').replace(/\`\`\`/g, '').trim();
   const match = stripped.match(/\[[\s\S]*\]/);
   if (!match) throw new Error('Could not parse tips');
@@ -226,7 +214,7 @@ ${txnContext}`;
     setChatLoading(true);
     setTimeout(() => chatRef.current?.scrollToEnd({ animated: true }), 100);
     try {
-      const reply = await callClaude(
+      const reply = await callAI(
         CHAT_SYSTEM(buildTxnContext(allTxns)),
         newHistory.map(m => ({ role: m.role, content: m.content }))
       );

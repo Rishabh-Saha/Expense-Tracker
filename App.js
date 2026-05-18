@@ -34,8 +34,8 @@ async function checkForUpdate() {
       await Updates.fetchUpdateAsync();
       await Updates.reloadAsync();
     }
-  } catch {
-    // silently ignore — update will apply next launch
+  } catch (e) {
+    console.log('[OTA] update check failed:', e?.message);
   }
 }
 

@@ -8,6 +8,8 @@ import { THEMES, THEME_ORDER } from '../constants/themes';
 import { getAllStatements, deleteStatement } from '../lib/database';
 import { useFeatures, FEATURES } from '../lib/FeatureContext';
 import { getApiKey, setApiKey, clearApiKeyOverride, getApiKeySource, maskKey } from '../lib/apiKey';
+import { MODELS } from '../constants/models';
+import { getSelectedModelId, setSelectedModelId, getOpenAIKey, setOpenAIKey } from '../lib/modelConfig';
 
 async function checkApiKey(key) {
   const response = await fetch('https://api.anthropic.com/v1/models', {
@@ -37,11 +39,49 @@ export default function SettingsScreen() {
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [showNewKey, setShowNewKey] = useState(false);
 
+  const [selectedModelId, _setSelectedModelId] = useState('claude-sonnet');
+  const [openAIKey, setOpenAIKeyState] = useState('');
+  const [showOpenAIKeyInput, setShowOpenAIKeyInput] = useState(false);
+  const [newOpenAIKey, setNewOpenAIKey] = useState('');
+  const [showNewOpenAIKey, setShowNewOpenAIKey] = useState(false);
+  const [openAIKeyStatus, setOpenAIKeyStatus] = useState(null);
+  const [openAIKeyError, setOpenAIKeyError] = useState(null);
+
   useFocusEffect(useCallback(() => {
     setStatements(getAllStatements());
     getApiKey().then(k => setCurrentKey(k));
     getApiKeySource().then(s => setKeySource(s));
+    getSelectedModelId().then(id => _setSelectedModelId(id));
+    getOpenAIKey().then(k => setOpenAIKeyState(k));
   }, []));
+
+  const selectModel = async (id) => {
+    await setSelectedModelId(id);
+    _setSelectedModelId(id);
+  };
+
+  const saveOpenAIKey = async () => {
+    if (!newOpenAIKey.trim()) return;
+    setOpenAIKeyStatus('checking'); setOpenAIKeyError(null);
+    try {
+      const res = await fetch('https://api.openai.com/v1/models', {
+        headers: { Authorization: `Bearer ${newOpenAIKey.trim()}` },
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e?.error?.message ?? `Error ${res.status}`);
+      }
+      await setOpenAIKey(newOpenAIKey.trim());
+      setOpenAIKeyState(newOpenAIKey.trim());
+      setNewOpenAIKey('');
+      setShowOpenAIKeyInput(false);
+      setOpenAIKeyStatus('valid');
+      Alert.alert('Saved', 'OpenAI API key updated successfully.');
+    } catch (e) {
+      setOpenAIKeyError(e.message);
+      setOpenAIKeyStatus('invalid');
+    }
+  };
 
   const verifyKey = async () => {
     setKeyStatus('checking'); setKeyError(null);
@@ -136,6 +176,93 @@ export default function SettingsScreen() {
                 />
               </View>
             ))}
+          </View>
+        )}
+      </View>
+
+      {/* ── AI Model ── */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>AI Model</Text>
+        <View style={styles.modelGrid}>
+          {MODELS.map(m => {
+            const active = selectedModelId === m.id;
+            const isOpenAI = m.provider === 'openai';
+            return (
+              <TouchableOpacity
+                key={m.id}
+                style={[styles.modelCard, active && { borderColor: c.primary, backgroundColor: c.primary + '18' }]}
+                onPress={() => selectModel(m.id)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.modelCardTop}>
+                  <View style={[styles.modelProviderBadge, { backgroundColor: isOpenAI ? '#10a37f22' : c.primary + '22' }]}>
+                    <Text style={[styles.modelProviderText, { color: isOpenAI ? '#10a37f' : c.primary }]}>
+                      {isOpenAI ? 'GPT' : 'C'}
+                    </Text>
+                  </View>
+                  {active && <Ionicons name="checkmark-circle" size={16} color={c.primary} />}
+                </View>
+                <Text style={[styles.modelName, active && { color: c.primary }]}>{m.label}</Text>
+                <Text style={styles.modelSublabel}>{m.sublabel}</Text>
+                <Text style={[styles.modelCost, { color: c.success }]}>{m.costHint}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Note about PDF parsing for OpenAI users */}
+        {MODELS.find(m => m.id === selectedModelId)?.provider === 'openai' && (
+          <Text style={styles.modelNote}>
+            PDF extraction always uses Claude (Haiku) — OpenAI doesn't accept PDF files directly. Anthropic key still required for uploads.
+          </Text>
+        )}
+
+        {/* OpenAI API key — shown when an OpenAI model is active */}
+        {MODELS.find(m => m.id === selectedModelId)?.provider === 'openai' && (
+          <View style={[styles.card, { marginTop: SPACING.sm }]}>
+            <View style={styles.row}>
+              <Ionicons name="key-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowLabel}>OpenAI API Key</Text>
+                <Text style={styles.keyPreview}>{openAIKey ? maskKey(openAIKey) : 'Not set'}</Text>
+              </View>
+              <TouchableOpacity style={styles.smallBtn} onPress={() => { setShowOpenAIKeyInput(v => !v); setOpenAIKeyStatus(null); }}>
+                <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>{showOpenAIKeyInput ? 'Cancel' : 'Update'}</Text>
+              </TouchableOpacity>
+            </View>
+            {showOpenAIKeyInput && (
+              <View style={[styles.keyInputBlock, { borderTopColor: c.border }]}>
+                <View style={styles.keyInputRow}>
+                  <TextInput
+                    style={styles.keyInput}
+                    value={newOpenAIKey}
+                    onChangeText={setNewOpenAIKey}
+                    placeholder="sk-..."
+                    placeholderTextColor={c.textTertiary}
+                    secureTextEntry={!showNewOpenAIKey}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity onPress={() => setShowNewOpenAIKey(v => !v)} style={styles.eyeBtn}>
+                    <Ionicons name={showNewOpenAIKey ? 'eye-off' : 'eye'} size={16} color={c.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.keyBtns}>
+                  <TouchableOpacity
+                    style={[styles.keyActionBtn, { backgroundColor: c.primary, opacity: !newOpenAIKey.trim() ? 0.5 : 1 }]}
+                    onPress={saveOpenAIKey}
+                    disabled={!newOpenAIKey.trim() || openAIKeyStatus === 'checking'}
+                  >
+                    {openAIKeyStatus === 'checking'
+                      ? <ActivityIndicator size="small" color={c.text} />
+                      : <Text style={[styles.smallBtnText, { color: c.text }]}>Save & Verify</Text>
+                    }
+                  </TouchableOpacity>
+                </View>
+                {openAIKeyStatus === 'valid' && <Text style={[styles.metaText, { color: c.success, marginTop: 4 }]}>✓ Valid</Text>}
+                {openAIKeyStatus === 'invalid' && <Text style={[styles.metaText, { color: c.error, marginTop: 4 }]}>{openAIKeyError}</Text>}
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -274,7 +401,7 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>About</Text>
         <View style={styles.card}>
-          {[['App', 'Expense Tracker'], ['Storage', 'On-device (SQLite)'], ['AI Model', 'Claude Opus 4'], ['Data', 'Never leaves your device']].map(([label, value], i) => (
+          {[['App', 'Expense Tracker'], ['Storage', 'On-device (SQLite)'], ['AI Model', MODELS.find(m => m.id === selectedModelId)?.label ?? 'Claude Sonnet'], ['Data', 'Never leaves your device']].map(([label, value], i) => (
             <View key={label} style={[styles.row, i > 0 && styles.borderTop]}>
               <Text style={styles.aboutLabel}>{label}</Text>
               <Text style={styles.aboutValue}>{value}</Text>
@@ -443,6 +570,18 @@ const createStyles = (c) => StyleSheet.create({
   aboutLabel: { flex: 1, color: c.textSecondary, fontSize: FONTS.sm },
   aboutValue: { color: c.text, fontSize: FONTS.sm, fontWeight: '500' },
   noData: { color: c.textTertiary, fontSize: FONTS.sm },
+  modelGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  modelCard: {
+    width: '47.5%', backgroundColor: c.surface, borderRadius: RADIUS.md,
+    padding: SPACING.md, borderWidth: 1.5, borderColor: c.border,
+  },
+  modelCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.xs },
+  modelProviderBadge: { width: 28, height: 28, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
+  modelProviderText: { fontSize: FONTS.sm, fontWeight: '800' },
+  modelName: { color: c.text, fontSize: FONTS.sm, fontWeight: '700', marginBottom: 2 },
+  modelSublabel: { color: c.textSecondary, fontSize: FONTS.xs, marginBottom: 4 },
+  modelCost: { fontSize: FONTS.xs, fontWeight: '600' },
+  modelNote: { color: c.textTertiary, fontSize: FONTS.xs, marginTop: SPACING.sm, lineHeight: 16 },
   guideRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.sm + 2, gap: SPACING.sm },
   guideIconBox: { width: 30, height: 30, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
   guideTitle: { flex: 1, color: c.text, fontSize: FONTS.sm, fontWeight: '500' },
