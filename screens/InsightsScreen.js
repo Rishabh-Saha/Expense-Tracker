@@ -14,13 +14,13 @@ import {
   createChatSession, saveChatMessage, getChatSessions, getChatMessages, deleteChatSession,
 } from '../lib/database';
 import { useFeatures } from '../lib/FeatureContext';
-
-const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+import { getApiKey } from '../lib/apiKey';
 
 async function callClaude(system, messages) {
+  const apiKey = await getApiKey();
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
     body: JSON.stringify({ model: 'claude-opus-4-7', max_tokens: 1024, system, messages }),
   });
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e?.error?.message ?? `API error ${res.status}`); }

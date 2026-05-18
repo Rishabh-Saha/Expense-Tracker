@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Linking, ActivityIndicator, Switch } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Linking, ActivityIndicator, Switch, TextInput } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS } from '../constants/theme';
@@ -7,15 +7,11 @@ import { useTheme } from '../lib/ThemeContext';
 import { THEMES, THEME_ORDER } from '../constants/themes';
 import { getAllStatements, deleteStatement } from '../lib/database';
 import { useFeatures, FEATURES } from '../lib/FeatureContext';
+import { getApiKey, setApiKey, clearApiKeyOverride, getApiKeySource, maskKey } from '../lib/apiKey';
 
-const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
-const KEY_PREVIEW = API_KEY
-  ? `${API_KEY.substring(0, 16)}${'•'.repeat(10)}${API_KEY.slice(-4)}`
-  : 'Not set';
-
-async function checkApiKey() {
+async function checkApiKey(key) {
   const response = await fetch('https://api.anthropic.com/v1/models', {
-    headers: { 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01' },
+    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
   });
   const orgId = response.headers.get('anthropic-organization-id');
   if (!response.ok) {
@@ -35,17 +31,55 @@ export default function SettingsScreen() {
   const [keyStatus, setKeyStatus] = useState(null);
   const [orgId, setOrgId] = useState(null);
   const [keyError, setKeyError] = useState(null);
+  const [currentKey, setCurrentKey] = useState('');
+  const [keySource, setKeySource] = useState('env');
+  const [newKey, setNewKey] = useState('');
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  const [showNewKey, setShowNewKey] = useState(false);
 
-  useFocusEffect(useCallback(() => { setStatements(getAllStatements()); }, []));
+  useFocusEffect(useCallback(() => {
+    setStatements(getAllStatements());
+    getApiKey().then(k => setCurrentKey(k));
+    getApiKeySource().then(s => setKeySource(s));
+  }, []));
 
   const verifyKey = async () => {
     setKeyStatus('checking'); setKeyError(null);
     try {
-      const { orgId: id } = await checkApiKey();
+      const key = await getApiKey();
+      const { orgId: id } = await checkApiKey(key);
       setOrgId(id); setKeyStatus('valid');
     } catch (e) {
       setKeyError(e.message); setKeyStatus('invalid');
     }
+  };
+
+  const saveNewKey = async () => {
+    if (!newKey.trim()) return;
+    setKeyStatus('checking'); setKeyError(null);
+    try {
+      await checkApiKey(newKey.trim());
+      await setApiKey(newKey.trim());
+      setCurrentKey(newKey.trim());
+      setKeySource('manual');
+      setNewKey('');
+      setShowKeyInput(false);
+      setKeyStatus('valid');
+      Alert.alert('Saved', 'API key updated successfully.');
+    } catch (e) {
+      setKeyError(e.message);
+      setKeyStatus('invalid');
+    }
+  };
+
+  const revertToEnvKey = async () => {
+    await clearApiKeyOverride();
+    const k = await getApiKey();
+    setCurrentKey(k);
+    setKeySource('env');
+    setShowKeyInput(false);
+    setKeyStatus(null);
+    Alert.alert('Reverted', 'Using the key baked into the app.');
   };
 
   const handleDelete = (id, filename) => {
@@ -110,29 +144,80 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Anthropic API Account</Text>
         <View style={styles.card}>
+
+          {/* Current key + source */}
           <View style={styles.row}>
             <Ionicons name="key-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>API Key</Text>
-              <Text style={styles.keyPreview}>{KEY_PREVIEW}</Text>
+              <Text style={styles.keyPreview}>{maskKey(currentKey)}</Text>
+              <Text style={[styles.metaText, { color: keySource === 'manual' ? c.primary : c.textTertiary }]}>
+                {keySource === 'manual' ? 'Manually set' : 'From app build'}
+              </Text>
             </View>
+            <TouchableOpacity style={styles.smallBtn} onPress={() => { setShowKeyInput(v => !v); setKeyStatus(null); }}>
+              <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>{showKeyInput ? 'Cancel' : 'Update'}</Text>
+            </TouchableOpacity>
           </View>
 
+          {/* Inline key update form */}
+          {showKeyInput && (
+            <View style={[styles.keyInputBlock, { borderTopColor: c.border }]}>
+              <View style={styles.keyInputRow}>
+                <TextInput
+                  style={styles.keyInput}
+                  value={newKey}
+                  onChangeText={setNewKey}
+                  placeholder="sk-ant-..."
+                  placeholderTextColor={c.textTertiary}
+                  secureTextEntry={!showNewKey}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity onPress={() => setShowNewKey(v => !v)} style={styles.eyeBtn}>
+                  <Ionicons name={showNewKey ? 'eye-off' : 'eye'} size={16} color={c.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.keyBtns}>
+                <TouchableOpacity
+                  style={[styles.keyActionBtn, { backgroundColor: c.primary, opacity: !newKey.trim() ? 0.5 : 1 }]}
+                  onPress={saveNewKey}
+                  disabled={!newKey.trim() || keyStatus === 'checking'}
+                >
+                  {keyStatus === 'checking'
+                    ? <ActivityIndicator size="small" color={c.text} />
+                    : <Text style={[styles.smallBtnText, { color: c.text }]}>Save & Verify</Text>
+                  }
+                </TouchableOpacity>
+                {keySource === 'manual' && (
+                  <TouchableOpacity style={[styles.keyActionBtn, { backgroundColor: c.surfaceLight, borderWidth: 1, borderColor: c.border }]} onPress={revertToEnvKey}>
+                    <Text style={[styles.smallBtnText, { color: c.textSecondary }]}>Revert to built-in</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {keyStatus === 'valid' && <Text style={[styles.metaText, { color: c.success, marginTop: 4 }]}>✓ Valid{orgId ? `  ·  Org: ${orgId.substring(0, 8)}…` : ''}</Text>}
+              {keyStatus === 'invalid' && <Text style={[styles.metaText, { color: c.error, marginTop: 4 }]}>{keyError}</Text>}
+            </View>
+          )}
+
+          {/* Verify */}
           <View style={[styles.row, styles.borderTop]}>
             <Ionicons name="shield-checkmark-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
             <View style={{ flex: 1 }}>
               <Text style={styles.rowLabel}>Key Status</Text>
-              {keyStatus === null && <Text style={styles.metaText}>Tap verify to check</Text>}
-              {keyStatus === 'checking' && <Text style={styles.metaText}>Verifying…</Text>}
-              {keyStatus === 'valid' && <Text style={[styles.metaText, { color: c.success }]}>✓ Valid{orgId ? `  ·  Org: ${orgId.substring(0, 8)}…` : ''}</Text>}
-              {keyStatus === 'invalid' && <Text style={[styles.metaText, { color: c.error }]}>{keyError}</Text>}
+              {!showKeyInput && keyStatus === null && <Text style={styles.metaText}>Tap to verify current key</Text>}
+              {!showKeyInput && keyStatus === 'checking' && <Text style={styles.metaText}>Verifying…</Text>}
+              {!showKeyInput && keyStatus === 'valid' && <Text style={[styles.metaText, { color: c.success }]}>✓ Valid{orgId ? `  ·  Org: ${orgId.substring(0, 8)}…` : ''}</Text>}
+              {!showKeyInput && keyStatus === 'invalid' && <Text style={[styles.metaText, { color: c.error }]}>{keyError}</Text>}
             </View>
-            <TouchableOpacity style={styles.smallBtn} onPress={verifyKey} disabled={keyStatus === 'checking'}>
-              {keyStatus === 'checking'
-                ? <ActivityIndicator size="small" color={c.text} />
-                : <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>Verify</Text>
-              }
-            </TouchableOpacity>
+            {!showKeyInput && (
+              <TouchableOpacity style={styles.smallBtn} onPress={verifyKey} disabled={keyStatus === 'checking'}>
+                {keyStatus === 'checking'
+                  ? <ActivityIndicator size="small" color={c.text} />
+                  : <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>Verify</Text>
+                }
+              </TouchableOpacity>
+            )}
           </View>
 
           <View style={[styles.row, styles.borderTop]}>
@@ -182,6 +267,9 @@ export default function SettingsScreen() {
         )}
       </View>
 
+      {/* ── Guide ── */}
+      <GuideSection c={c} styles={styles} />
+
       {/* ── About ── */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>About</Text>
@@ -195,6 +283,131 @@ export default function SettingsScreen() {
         </View>
       </View>
     </ScrollView>
+  );
+}
+
+// ─── Guide content ────────────────────────────────────────────────────────────
+// Add new items here — they auto-appear in the Guide section
+
+const GUIDE_ITEMS = [
+  {
+    icon: 'rocket-outline',
+    title: 'Getting started',
+    content: `1. Go to Settings → Anthropic API Account and set your API key (get one free at console.anthropic.com).
+2. Tap the Upload tab, select your credit card statement PDF(s), then tap "Extract with AI".
+3. Review the extracted transactions and tap Save All.
+4. Your Dashboard will now show your spending summary.`,
+  },
+  {
+    icon: 'key-outline',
+    title: 'How to get & set your API key',
+    content: `1. Go to console.anthropic.com and sign up (free credits included for new accounts).
+2. Navigate to Settings → API Keys → Create Key.
+3. Copy the key (starts with sk-ant-...).
+4. In this app, go to Settings → Anthropic API Account → tap Update, paste your key, and tap Save & Verify.
+
+Your key is stored securely on your device and takes priority over any built-in key.`,
+  },
+  {
+    icon: 'cloud-upload-outline',
+    title: 'Uploading statements',
+    content: `• You can select multiple PDF files at once — they process one by one.
+• The app detects duplicate files by filename and skips them automatically.
+• Even if two different statements overlap, individual duplicate transactions are filtered out using a fingerprint of date + amount + description.
+• If a statement fails, tap the red row to see the full error message.`,
+  },
+  {
+    icon: 'swap-horizontal-outline',
+    title: 'Understanding amounts',
+    content: `• Negative amount (−$25.00) = money debited from your account (a purchase or fee).
+• Positive amount (+$22.59) = money credited back to your account (a refund or cashback).
+
+This matches what you see on your bank statement.`,
+  },
+  {
+    icon: 'bar-chart-outline',
+    title: 'Using Analytics',
+    content: `• Use the period selector at the top to switch between YTD, Last Year, All Time, or individual months.
+• Tap any category row in Breakdown to expand and see every transaction inside it.
+• Subscriptions Detected auto-finds merchants that charge you consistently each month.
+• Merchant Trends: type any merchant name (or tap a chip) to see a monthly line chart of your spend with them.`,
+  },
+  {
+    icon: 'bulb-outline',
+    title: 'Using Insights & Chat',
+    content: `• Tap "Generate insights from all expenses" to get 5 AI-powered saving tips based on your real data.
+• Tips are cached — they only regenerate when you tap Regenerate.
+• In the chat, ask anything about your spending: "How much on DoorDash?", "Which card do I use for ExpressVPN?", "What's my biggest category?".
+• Tap History to revisit past conversations. Tap New Chat to start fresh.`,
+  },
+  {
+    icon: 'color-palette-outline',
+    title: 'Changing the theme',
+    content: `Go to Settings → Theme and tap any of the 5 colour swatches:
+• 🏜️ Dune — warm sandy tones
+• 🌿 Sage — forest greens
+• 🌅 Dusk — deep navy & sky blue
+• 🔥 Ember — dark brown & coral
+• 🔮 Cosmos — deep purple (default)
+
+The theme applies instantly across the whole app.`,
+  },
+  {
+    icon: 'toggle-outline',
+    title: 'Feature flags (Config)',
+    content: `Settings → Config lets you toggle optional features on or off:
+• Chat History — save and browse past Insights conversations
+• Quick Suggestions — question chips in the chat input area
+• AI Savings Tips — the generate tips button in Insights
+• Subscription Detection — the recurring charge detector in Analytics
+• Merchant Trends — the merchant search chart in Analytics
+
+Critical features like Upload and the transaction list cannot be disabled.`,
+  },
+];
+
+function GuideItem({ item, c, styles }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View>
+      <TouchableOpacity
+        style={styles.guideRow}
+        onPress={() => setOpen(o => !o)}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.guideIconBox, { backgroundColor: c.primary + '22' }]}>
+          <Ionicons name={item.icon} size={16} color={c.primary} />
+        </View>
+        <Text style={styles.guideTitle}>{item.title}</Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={15} color={c.textTertiary} />
+      </TouchableOpacity>
+      {open && (
+        <View style={[styles.guideBody, { borderTopColor: c.border }]}>
+          <Text style={styles.guideContent}>{item.content}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function GuideSection({ c, styles }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={styles.section}>
+      <TouchableOpacity style={styles.collapsibleHeader} onPress={() => setOpen(o => !o)}>
+        <Text style={styles.sectionTitle}>Guide & Help</Text>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={c.textSecondary} />
+      </TouchableOpacity>
+      {open && (
+        <View style={styles.card}>
+          {GUIDE_ITEMS.map((item, i) => (
+            <View key={i} style={i > 0 && styles.borderTop}>
+              <GuideItem item={item} c={c} styles={styles} />
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -218,10 +431,21 @@ const createStyles = (c) => StyleSheet.create({
   keyPreview: { color: c.textSecondary, fontSize: FONTS.xs, fontFamily: 'monospace', marginTop: 2 },
   metaText: { color: c.textSecondary, fontSize: FONTS.xs, marginTop: 2 },
   smallBtn: { backgroundColor: c.surfaceLight, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm + 2, paddingVertical: SPACING.xs + 1, borderWidth: 1, borderColor: c.border, minWidth: 60, alignItems: 'center' },
+  keyInputBlock: { borderTopWidth: 1, paddingTop: SPACING.sm },
+  keyInputRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.surfaceLight, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: c.border, marginBottom: SPACING.sm },
+  keyInput: { flex: 1, color: c.text, fontSize: FONTS.sm, padding: SPACING.sm + 2 },
+  eyeBtn: { padding: SPACING.sm },
+  keyBtns: { flexDirection: 'row', gap: SPACING.sm },
+  keyActionBtn: { flex: 1, borderRadius: RADIUS.sm, paddingVertical: SPACING.sm, alignItems: 'center' },
   smallBtnText: { fontSize: FONTS.xs, fontWeight: '600' },
   filename: { color: c.text, fontSize: FONTS.sm, fontWeight: '500' },
   deleteBtn: { padding: SPACING.xs },
   aboutLabel: { flex: 1, color: c.textSecondary, fontSize: FONTS.sm },
   aboutValue: { color: c.text, fontSize: FONTS.sm, fontWeight: '500' },
   noData: { color: c.textTertiary, fontSize: FONTS.sm },
+  guideRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.sm + 2, gap: SPACING.sm },
+  guideIconBox: { width: 30, height: 30, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
+  guideTitle: { flex: 1, color: c.text, fontSize: FONTS.sm, fontWeight: '500' },
+  guideBody: { borderTopWidth: 1, paddingTop: SPACING.sm, paddingBottom: SPACING.sm, paddingLeft: 42 },
+  guideContent: { color: c.textSecondary, fontSize: FONTS.sm, lineHeight: 22 },
 });

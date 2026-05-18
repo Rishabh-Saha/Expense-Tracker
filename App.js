@@ -1,10 +1,11 @@
 import 'expo-dev-client';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Updates from 'expo-updates';
 import { FONTS } from './constants/theme';
 import { ThemeProvider, useTheme } from './lib/ThemeContext';
 import { FeatureProvider } from './lib/FeatureContext';
@@ -26,9 +27,24 @@ const TAB_ICONS = {
   Settings: ['settings', 'settings-outline'],
 };
 
+async function checkForUpdate() {
+  try {
+    if (!Updates.isEnabled) return;
+    const update = await Updates.checkForUpdateAsync();
+    if (update.isAvailable) {
+      await Updates.fetchUpdateAsync();
+      await Updates.reloadAsync();
+    }
+  } catch {
+    // silently ignore — update will apply next launch
+  }
+}
+
 function ThemedApp() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+
+  useEffect(() => { checkForUpdate(); }, []);
 
   return (
     <>
