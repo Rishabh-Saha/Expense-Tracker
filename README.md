@@ -150,6 +150,43 @@ const CHAT_INSTRUCTIONS = [
 
 Claude sees these as numbered rules in every conversation.
 
+## Future work
+
+### Statement import automation
+Currently statements are uploaded manually. The following approaches were discussed:
+
+- **Android Share Intent** — add an intent filter so PDFs can be shared directly from Gmail/any app into the expense tracker with one tap, auto-navigating to the Upload screen. Requires an `intentFilter` in `app.json` and a handler in `UploadScreen.js`. Estimated effort: ~1 hour.
+- **n8n email watcher + push notification** — n8n monitors the inbox for bank statement emails, extracts the PDF attachment, and sends an Expo push notification. User taps the notification to open the app. Requires an n8n workflow and Expo Push API integration.
+- **Full automation with backend** — n8n watches email, downloads the PDF, calls Claude API, and pushes the processed transactions to the app via a sync endpoint. Completely hands-off but requires a small backend service.
+
+### Multi-user / sharing the app
+The Anthropic API key is currently baked into the APK at build time. To share the app with others:
+
+- **Per-user API key input** — re-add the key input screen (existed in an early version, removed for personal use). Each person signs up at `console.anthropic.com` (free credits available) and enters their own key on first launch.
+- **Backend proxy** — a single server holds the key, the app calls the server, the server calls Anthropic. Users need no account or key of their own. Most distribution-friendly option.
+
+### CSV statement support
+Some banks offer CSV exports alongside PDFs. CSV parsing is deterministic and cheaper (no AI call needed). A CSV parser could run entirely on-device, saving API credits for accounts that offer it.
+
+### iOS support
+The app is Android-only. An iOS build requires an Apple Developer account ($99/year) and minor UI adjustments for iOS-specific safe areas and file picker behaviour. The codebase is already cross-platform React Native — no logic changes needed.
+
+### Cloud sync / multi-device
+All data currently lives on-device in SQLite. A cloud sync layer (e.g. Supabase or Firebase) would allow the same data to be accessed across multiple devices and serve as a backup.
+
+### Budget tracking & alerts
+- Set monthly budgets per category
+- Push notifications when approaching or exceeding a budget
+- "Overspent" indicator on the Dashboard
+
+### Expanded subscription detection
+The current keyword list covers major services. A longer-term improvement is a community-maintained list or a machine-learning classifier that detects subscription patterns without relying on merchant name matching.
+
+### Google Drive / iCloud auto-import
+Watch a specific folder for new PDF files and auto-import them when the app is opened, removing even the manual "pick file" step.
+
+---
+
 ## Data model
 
 ```sql
