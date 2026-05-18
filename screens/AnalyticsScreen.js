@@ -10,8 +10,9 @@ import { getCategoryColor, getCategoryEmoji } from '../constants/categories';
 import {
   getAvailableMonths, getStatsForPeriod, getTransactionsForPeriod,
   getLastSixMonthsTotals, getAllTransactions,
-  getMerchantMonthlyTotals, getTopMerchants,
+  getMerchantMonthlyTotals, getTopMerchants, getCardStats,
 } from '../lib/database';
+import { getCardColor } from '../constants/cardColors';
 
 const W = Dimensions.get('window').width;
 
@@ -144,6 +145,7 @@ export default function AnalyticsScreen() {
   const [txns, setTxns] = useState([]);
   const [trend, setTrend] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
+  const [cardStats, setCardStats] = useState([]);
 
   const [merchantQuery, setMerchantQuery] = useState('');
   const [merchantData, setMerchantData] = useState(null);
@@ -156,8 +158,10 @@ export default function AnalyticsScreen() {
       const initial = available[0] ?? null;
       if (initial) loadPeriod(initial);
       setTrend(getLastSixMonthsTotals().reverse());
-      setSubscriptions(detectSubscriptions(getAllTransactions()));
+      const allTxns = getAllTransactions();
+      setSubscriptions(detectSubscriptions(allTxns));
       setTopMerchants(getTopMerchants(12));
+      setCardStats(getCardStats());
     }, [])
   );
 
@@ -454,6 +458,49 @@ export default function AnalyticsScreen() {
         </View>
       )}
 
+      {/* ── By Card ── */}
+      {cardStats.length > 1 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Spending by Card</Text>
+          <View style={styles.card}>
+            <View style={styles.cardBanner}>
+              <View>
+                <Text style={styles.cardBannerLabel}>Cards tracked</Text>
+                <Text style={[styles.cardBannerVal, { color: c.primary }]}>{cardStats.length}</Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={styles.cardBannerLabel}>Total across cards</Text>
+                <Text style={[styles.cardBannerVal, { color: c.secondary }]}>
+                  ${cardStats.reduce((s, r) => s + r.total, 0).toFixed(0)}
+                </Text>
+              </View>
+            </View>
+            {(() => {
+              const maxTotal = Math.max(...cardStats.map(r => r.total), 1);
+              return cardStats.map((cs, i) => {
+                const color = getCardColor(cs.card);
+                const pct = (cs.total / cardStats.reduce((s, r) => s + r.total, 0)) * 100;
+                return (
+                  <View key={i} style={[styles.cardRow, i === 0 && styles.cardRowFirst]}>
+                    <View style={[styles.cardDot, { backgroundColor: color }]} />
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.cardRowHeader}>
+                        <Text style={styles.cardRowName} numberOfLines={1}>{cs.card}</Text>
+                        <Text style={[styles.cardRowAmt, { color }]}>${cs.total.toFixed(0)}</Text>
+                      </View>
+                      <View style={styles.cardBarTrack}>
+                        <View style={[styles.cardBarFill, { width: `${(cs.total / maxTotal) * 100}%`, backgroundColor: color }]} />
+                      </View>
+                      <Text style={styles.cardRowMeta}>{cs.count} transactions · {pct.toFixed(1)}% of total</Text>
+                    </View>
+                  </View>
+                );
+              });
+            })()}
+          </View>
+        </View>
+      )}
+
       {/* ── Breakdown ── */}
       {stats.totals?.length > 0 && (
         <View style={styles.section}>
@@ -546,6 +593,18 @@ const createStyles = (c) => StyleSheet.create({
   merchantBarFill: { height: 6, borderRadius: 3 },
   merchantRowAmt: { color: c.text, fontSize: FONTS.sm, fontWeight: '600', width: 48, textAlign: 'right' },
   merchantRowCount: { color: c.textTertiary, fontSize: FONTS.xs, width: 24, textAlign: 'right' },
+  cardBanner: { flexDirection: 'row', justifyContent: 'space-between', padding: SPACING.md, marginBottom: SPACING.xs, backgroundColor: c.surfaceLight, borderRadius: RADIUS.sm },
+  cardBannerLabel: { color: c.textSecondary, fontSize: FONTS.xs, marginBottom: 2 },
+  cardBannerVal: { fontSize: FONTS.xl, fontWeight: '800' },
+  cardRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: SPACING.sm + 2, borderTopWidth: 1, borderTopColor: c.border, gap: SPACING.sm },
+  cardRowFirst: { borderTopWidth: 0 },
+  cardDot: { width: 12, height: 12, borderRadius: 6, marginTop: 3 },
+  cardRowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  cardRowName: { color: c.text, fontSize: FONTS.sm, fontWeight: '600', flex: 1, marginRight: SPACING.sm },
+  cardRowAmt: { fontSize: FONTS.md, fontWeight: '700' },
+  cardBarTrack: { height: 6, backgroundColor: c.border, borderRadius: 3, overflow: 'hidden', marginBottom: 4 },
+  cardBarFill: { height: 6, borderRadius: 3 },
+  cardRowMeta: { color: c.textSecondary, fontSize: FONTS.xs },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: c.background },
   emptyText: { color: c.textSecondary, fontSize: FONTS.md },
 });

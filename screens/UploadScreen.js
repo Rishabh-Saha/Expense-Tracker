@@ -30,7 +30,7 @@ function FileRow({ file, onPressError, c }) {
         <Text style={[styles_static.fileName, { color: c.text }]} numberOfLines={1}>{file.name}</Text>
         {file.status === STATUS.DONE && (
           <Text style={[styles_static.fileMeta, { color: c.textSecondary }]}>
-            {file.txnCount} saved{file.skipped > 0 ? ` · ${file.skipped} dupes skipped` : ''} · {file.month}
+            {file.cardName ? `${file.cardName} · ` : ''}{file.txnCount} saved{file.skipped > 0 ? ` · ${file.skipped} dupes skipped` : ''} · {file.month}
           </Text>
         )}
         {file.status === STATUS.DUPLICATE && (
@@ -80,11 +80,11 @@ export default function UploadScreen({ navigation }) {
       updated[i] = { ...updated[i], status: STATUS.PROCESSING };
       setFiles([...updated]);
       try {
-        const transactions = await extractTransactionsFromPDF(updated[i].uri);
+        const { cardName, transactions } = await extractTransactionsFromPDF(updated[i].uri);
         const month = inferMonthFromTransactions(transactions) ?? new Date().toISOString().substring(0, 7);
-        const statementId = saveStatement({ filename: updated[i].name, month });
+        const statementId = saveStatement({ filename: updated[i].name, month, cardName });
         const { saved, skipped } = saveTransactions(statementId, transactions);
-        updated[i] = { ...updated[i], status: STATUS.DONE, txnCount: saved, skipped, month };
+        updated[i] = { ...updated[i], status: STATUS.DONE, txnCount: saved, skipped, month, cardName };
       } catch (e) {
         updated[i] = { ...updated[i], status: STATUS.ERROR, error: e.message };
       }

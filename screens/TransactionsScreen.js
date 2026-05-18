@@ -4,7 +4,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS } from '../constants/theme';
 import { useTheme } from '../lib/ThemeContext';
-import { getAllTransactions, getAvailableMonths } from '../lib/database';
+import { getAllTransactions, getAvailableMonths, getAllCards } from '../lib/database';
+import { getCardColor } from '../constants/cardColors';
 import TransactionItem from '../components/TransactionItem';
 
 function groupByDate(txns) {
@@ -29,21 +30,24 @@ export default function TransactionsScreen() {
 
   const [allTxns, setAllTxns] = useState([]);
   const [search, setSearch] = useState('');
-  const [selectedCat, setSelectedCat] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(null);
+  const [selectedCard, setSelectedCard] = useState(null);
   const [months, setMonths] = useState([]);
+  const [cards, setCards] = useState([]);
 
   useFocusEffect(
     useCallback(() => {
       const available = getAvailableMonths();
       setMonths(available);
       setAllTxns(getAllTransactions());
+      setCards(getAllCards());
     }, [])
   );
 
   const filtered = useMemo(() => {
     let txns = allTxns;
     if (selectedMonth) txns = txns.filter(t => t.date.startsWith(selectedMonth));
+    if (selectedCard) txns = txns.filter(t => (t.card_name || 'Unknown Card') === selectedCard);
     if (search.trim()) {
       const q = search.toLowerCase();
       txns = txns.filter(t =>
@@ -53,7 +57,7 @@ export default function TransactionsScreen() {
       );
     }
     return txns;
-  }, [allTxns, selectedMonth, search]);
+  }, [allTxns, selectedMonth, selectedCard, search]);
 
   const sections = useMemo(() => groupByDate(filtered), [filtered]);
   const totalFiltered = useMemo(
@@ -96,6 +100,31 @@ export default function TransactionsScreen() {
               <Text style={[styles.chipText, selectedMonth === m && styles.chipTextActive]}>{m}</Text>
             </TouchableOpacity>
           ))}
+        </View>
+      )}
+
+      {/* Card filter */}
+      {cards.length > 1 && (
+        <View style={styles.filterScroll}>
+          <TouchableOpacity
+            style={[styles.chip, !selectedCard && styles.chipActive]}
+            onPress={() => setSelectedCard(null)}
+          >
+            <Text style={[styles.chipText, !selectedCard && styles.chipTextActive]}>All cards</Text>
+          </TouchableOpacity>
+          {cards.map(card => {
+            const color = getCardColor(card.name);
+            const active = selectedCard === card.name;
+            return (
+              <TouchableOpacity
+                key={card.name}
+                style={[styles.chip, active && { backgroundColor: color, borderColor: color }]}
+                onPress={() => setSelectedCard(active ? null : card.name)}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{card.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
 
