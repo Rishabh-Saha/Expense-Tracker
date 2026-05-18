@@ -30,14 +30,31 @@
         "backgroundColor": "#0D0D1A"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.expensetracker.app"
+      "package": "com.expensetracker.app",
+      "enableProguardInReleaseBuilds": true,
+      "enableShrinkResourcesInReleaseBuilds": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-sqlite",
-      "expo-updates"
+      "expo-updates",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "packagingOptions": {
+              "pickFirst": ["**/libc++_shared.so"],
+              "excludes": [
+                "**/x86/**",
+                "**/x86_64/**",
+                "**/armeabi-v7a/**"
+              ]
+            }
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {
