@@ -14,6 +14,65 @@ A personal Android app that parses your credit card statements using Claude AI, 
 - **Duplicate protection** — filename-level and transaction-level deduplication prevents double-counting
 - **On-device storage** — all data lives in SQLite on your phone, never sent to any server
 
+## Architecture
+
+```mermaid
+flowchart TD
+    User([" User "])
+
+    subgraph UI["Screens"]
+        Upload["Upload"]
+        Dashboard["Dashboard"]
+        Txns["Transactions"]
+        Analytics["Analytics"]
+        Insights["Insights & Chat"]
+        Settings["Settings"]
+    end
+
+    subgraph Providers["Context Providers"]
+        Theme["ThemeContext\ncolour palette"]
+        Flags["FeatureContext\nfeature flags"]
+    end
+
+    subgraph Logic["Business Logic  (lib/)"]
+        PDF["pdfParser.js\nPDF → base64 → prompt"]
+        AIClient["aiClient.js\nroutes by provider"]
+        DB["database.js\nSQLite queries"]
+        MC["modelConfig.js\nselected model"]
+        AK["apiKey.js\nAnthropic / OpenAI keys"]
+    end
+
+    subgraph Storage["On-device Storage"]
+        SQLite[("SQLite\nstatements · transactions\ninsights · chat")]
+        AStorage[("AsyncStorage\ntheme · model · api keys")]
+    end
+
+    subgraph AIAPIs["AI APIs"]
+        Claude["Anthropic\nClaude Haiku / Sonnet"]
+        GPT["OpenAI\nGPT-4o / mini"]
+    end
+
+    EAS["EAS Update\nOTA  —  main branch"]
+
+    User --> UI
+    UI --> Providers
+
+    Upload -->|"PDF file"| PDF
+    PDF --> AIClient
+    AIClient -->|"provider = anthropic"| Claude
+    AIClient -->|"provider = openai"| GPT
+    Claude & GPT -->|"extracted JSON"| DB
+    DB --> SQLite
+
+    Dashboard & Txns & Analytics & Insights --> DB
+    Insights -->|"chat messages"| AIClient
+
+    Settings --> MC & AK
+    MC & AK & Theme & Flags --> AStorage
+
+    App.js -->|"foreground check"| EAS
+```
+
 ## Tech stack
 
 | Layer | Library |
@@ -24,7 +83,9 @@ A personal Android app that parses your credit card statements using Claude AI, 
 | File picking | expo-document-picker |
 | File reading | expo-file-system (next API) |
 | Charts | react-native-gifted-charts |
-| AI (PDF parsing + chat) | Claude API (`claude-opus-4-7`) via `fetch` |
+| AI (PDF parsing + chat) | Anthropic API (Claude Haiku / Sonnet) or OpenAI API (GPT-4o / mini) |
+| Model selection | Persisted in AsyncStorage via `lib/modelConfig.js` |
+| OTA updates | EAS Update — `main` branch, checked on every foreground |
 | Theming | React Context + AsyncStorage |
 | Testing | Jest 29 + jest-expo |
 
