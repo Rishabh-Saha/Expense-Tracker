@@ -232,166 +232,177 @@ export default function SettingsScreen() {
           })}
         </View>
 
-        {/* Note about PDF parsing for OpenAI users */}
-        {MODELS.find(m => m.id === selectedModelId)?.provider === 'openai' && (
-          <Text style={styles.modelNote}>
-            PDF extraction uses your selected OpenAI model. Anthropic key is only needed if you switch to a Claude model.
-          </Text>
-        )}
-
-        {/* OpenAI API key — shown when an OpenAI model is active */}
-        {MODELS.find(m => m.id === selectedModelId)?.provider === 'openai' && (
-          <View style={[styles.card, { marginTop: SPACING.sm }]}>
-            <View style={styles.row}>
-              <Ionicons name="key-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowLabel}>OpenAI API Key</Text>
-                <Text style={styles.keyPreview}>{openAIKey ? maskKey(openAIKey) : 'Not set'}</Text>
-              </View>
-              <TouchableOpacity style={styles.smallBtn} onPress={() => { setShowOpenAIKeyInput(v => !v); setOpenAIKeyStatus(null); }}>
-                <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>{showOpenAIKeyInput ? 'Cancel' : 'Update'}</Text>
-              </TouchableOpacity>
-            </View>
-            {showOpenAIKeyInput && (
-              <View style={[styles.keyInputBlock, { borderTopColor: c.border }]}>
-                <View style={styles.keyInputRow}>
-                  <TextInput
-                    style={styles.keyInput}
-                    value={newOpenAIKey}
-                    onChangeText={setNewOpenAIKey}
-                    placeholder="sk-..."
-                    placeholderTextColor={c.textTertiary}
-                    secureTextEntry={!showNewOpenAIKey}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                  <TouchableOpacity onPress={() => setShowNewOpenAIKey(v => !v)} style={styles.eyeBtn}>
-                    <Ionicons name={showNewOpenAIKey ? 'eye-off' : 'eye'} size={16} color={c.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.keyBtns}>
-                  <TouchableOpacity
-                    style={[styles.keyActionBtn, { backgroundColor: c.primary, opacity: !newOpenAIKey.trim() ? 0.5 : 1 }]}
-                    onPress={saveOpenAIKey}
-                    disabled={!newOpenAIKey.trim() || openAIKeyStatus === 'checking'}
-                  >
-                    {openAIKeyStatus === 'checking'
-                      ? <ActivityIndicator size="small" color={c.text} />
-                      : <Text style={[styles.smallBtnText, { color: c.text }]}>Save & Verify</Text>
-                    }
-                  </TouchableOpacity>
-                </View>
-                {openAIKeyStatus === 'valid' && <Text style={[styles.metaText, { color: c.success, marginTop: 4 }]}>✓ Valid</Text>}
-                {openAIKeyStatus === 'invalid' && <Text style={[styles.metaText, { color: c.error, marginTop: 4 }]}>{openAIKeyError}</Text>}
-              </View>
-            )}
-          </View>
-        )}
       </View>
 
-      {/* ── API account ── */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Anthropic API Account</Text>
-        <View style={styles.card}>
-
-          {/* Current key + source */}
-          <View style={styles.row}>
-            <Ionicons name="key-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>API Key</Text>
-              <Text style={styles.keyPreview}>{maskKey(currentKey)}</Text>
-              <Text style={[styles.metaText, { color: keySource === 'manual' ? c.primary : c.textTertiary }]}>
-                {keySource === 'manual' ? 'Manually set' : 'From app build'}
-              </Text>
+      {/* ── API account — adapts to selected model's provider ── */}
+      {(() => {
+        const isOpenAI = MODELS.find(m => m.id === selectedModelId)?.provider === 'openai';
+        if (isOpenAI) {
+          return (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>OpenAI API Account</Text>
+              <View style={styles.card}>
+                <View style={styles.row}>
+                  <Ionicons name="key-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowLabel}>API Key</Text>
+                    <Text style={styles.keyPreview}>{openAIKey ? maskKey(openAIKey) : 'Not set'}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.smallBtn} onPress={() => { setShowOpenAIKeyInput(v => !v); setOpenAIKeyStatus(null); }}>
+                    <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>{showOpenAIKeyInput ? 'Cancel' : 'Update'}</Text>
+                  </TouchableOpacity>
+                </View>
+                {showOpenAIKeyInput && (
+                  <View style={[styles.keyInputBlock, { borderTopColor: c.border }]}>
+                    <View style={styles.keyInputRow}>
+                      <TextInput
+                        style={styles.keyInput}
+                        value={newOpenAIKey}
+                        onChangeText={setNewOpenAIKey}
+                        placeholder="sk-..."
+                        placeholderTextColor={c.textTertiary}
+                        secureTextEntry={!showNewOpenAIKey}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      <TouchableOpacity onPress={() => setShowNewOpenAIKey(v => !v)} style={styles.eyeBtn}>
+                        <Ionicons name={showNewOpenAIKey ? 'eye-off' : 'eye'} size={16} color={c.textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.keyBtns}>
+                      <TouchableOpacity
+                        style={[styles.keyActionBtn, { backgroundColor: c.primary, opacity: !newOpenAIKey.trim() ? 0.5 : 1 }]}
+                        onPress={saveOpenAIKey}
+                        disabled={!newOpenAIKey.trim() || openAIKeyStatus === 'checking'}
+                      >
+                        {openAIKeyStatus === 'checking'
+                          ? <ActivityIndicator size="small" color={c.text} />
+                          : <Text style={[styles.smallBtnText, { color: c.text }]}>Save & Verify</Text>}
+                      </TouchableOpacity>
+                    </View>
+                    {openAIKeyStatus === 'valid' && <Text style={[styles.metaText, { color: c.success, marginTop: 4 }]}>✓ Valid</Text>}
+                    {openAIKeyStatus === 'invalid' && <Text style={[styles.metaText, { color: c.error, marginTop: 4 }]}>{openAIKeyError}</Text>}
+                  </View>
+                )}
+                <View style={[styles.row, styles.borderTop]}>
+                  <Ionicons name="wallet-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowLabel}>Credit Balance</Text>
+                    <Text style={styles.metaText}>platform.openai.com</Text>
+                  </View>
+                  <TouchableOpacity style={styles.smallBtn} onPress={() => Linking.openURL('https://platform.openai.com/settings/organization/billing/overview')}>
+                    <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>View ↗</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={[styles.row, styles.borderTop]}>
+                  <Ionicons name="stats-chart-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowLabel}>Token Usage</Text>
+                    <Text style={styles.metaText}>platform.openai.com</Text>
+                  </View>
+                  <TouchableOpacity style={styles.smallBtn} onPress={() => Linking.openURL('https://platform.openai.com/usage')}>
+                    <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>View ↗</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-            <TouchableOpacity style={styles.smallBtn} onPress={() => { setShowKeyInput(v => !v); setKeyStatus(null); }}>
-              <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>{showKeyInput ? 'Cancel' : 'Update'}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Inline key update form */}
-          {showKeyInput && (
-            <View style={[styles.keyInputBlock, { borderTopColor: c.border }]}>
-              <View style={styles.keyInputRow}>
-                <TextInput
-                  style={styles.keyInput}
-                  value={newKey}
-                  onChangeText={setNewKey}
-                  placeholder="sk-ant-..."
-                  placeholderTextColor={c.textTertiary}
-                  secureTextEntry={!showNewKey}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <TouchableOpacity onPress={() => setShowNewKey(v => !v)} style={styles.eyeBtn}>
-                  <Ionicons name={showNewKey ? 'eye-off' : 'eye'} size={16} color={c.textSecondary} />
+          );
+        }
+        return (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Anthropic API Account</Text>
+            <View style={styles.card}>
+              <View style={styles.row}>
+                <Ionicons name="key-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowLabel}>API Key</Text>
+                  <Text style={styles.keyPreview}>{maskKey(currentKey)}</Text>
+                  <Text style={[styles.metaText, { color: keySource === 'manual' ? c.primary : c.textTertiary }]}>
+                    {keySource === 'manual' ? 'Manually set' : 'From app build'}
+                  </Text>
+                </View>
+                <TouchableOpacity style={styles.smallBtn} onPress={() => { setShowKeyInput(v => !v); setKeyStatus(null); }}>
+                  <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>{showKeyInput ? 'Cancel' : 'Update'}</Text>
                 </TouchableOpacity>
               </View>
-              <View style={styles.keyBtns}>
-                <TouchableOpacity
-                  style={[styles.keyActionBtn, { backgroundColor: c.primary, opacity: !newKey.trim() ? 0.5 : 1 }]}
-                  onPress={saveNewKey}
-                  disabled={!newKey.trim() || keyStatus === 'checking'}
-                >
-                  {keyStatus === 'checking'
-                    ? <ActivityIndicator size="small" color={c.text} />
-                    : <Text style={[styles.smallBtnText, { color: c.text }]}>Save & Verify</Text>
-                  }
-                </TouchableOpacity>
-                {keySource === 'manual' && (
-                  <TouchableOpacity style={[styles.keyActionBtn, { backgroundColor: c.surfaceLight, borderWidth: 1, borderColor: c.border }]} onPress={revertToEnvKey}>
-                    <Text style={[styles.smallBtnText, { color: c.textSecondary }]}>Revert to built-in</Text>
+              {showKeyInput && (
+                <View style={[styles.keyInputBlock, { borderTopColor: c.border }]}>
+                  <View style={styles.keyInputRow}>
+                    <TextInput
+                      style={styles.keyInput}
+                      value={newKey}
+                      onChangeText={setNewKey}
+                      placeholder="sk-ant-..."
+                      placeholderTextColor={c.textTertiary}
+                      secureTextEntry={!showNewKey}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    <TouchableOpacity onPress={() => setShowNewKey(v => !v)} style={styles.eyeBtn}>
+                      <Ionicons name={showNewKey ? 'eye-off' : 'eye'} size={16} color={c.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.keyBtns}>
+                    <TouchableOpacity
+                      style={[styles.keyActionBtn, { backgroundColor: c.primary, opacity: !newKey.trim() ? 0.5 : 1 }]}
+                      onPress={saveNewKey}
+                      disabled={!newKey.trim() || keyStatus === 'checking'}
+                    >
+                      {keyStatus === 'checking'
+                        ? <ActivityIndicator size="small" color={c.text} />
+                        : <Text style={[styles.smallBtnText, { color: c.text }]}>Save & Verify</Text>}
+                    </TouchableOpacity>
+                    {keySource === 'manual' && (
+                      <TouchableOpacity style={[styles.keyActionBtn, { backgroundColor: c.surfaceLight, borderWidth: 1, borderColor: c.border }]} onPress={revertToEnvKey}>
+                        <Text style={[styles.smallBtnText, { color: c.textSecondary }]}>Revert to built-in</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {keyStatus === 'valid' && <Text style={[styles.metaText, { color: c.success, marginTop: 4 }]}>✓ Valid{orgId ? `  ·  Org: ${orgId.substring(0, 8)}…` : ''}</Text>}
+                  {keyStatus === 'invalid' && <Text style={[styles.metaText, { color: c.error, marginTop: 4 }]}>{keyError}</Text>}
+                </View>
+              )}
+              <View style={[styles.row, styles.borderTop]}>
+                <Ionicons name="shield-checkmark-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowLabel}>Key Status</Text>
+                  {!showKeyInput && keyStatus === null && <Text style={styles.metaText}>Tap to verify current key</Text>}
+                  {!showKeyInput && keyStatus === 'checking' && <Text style={styles.metaText}>Verifying…</Text>}
+                  {!showKeyInput && keyStatus === 'valid' && <Text style={[styles.metaText, { color: c.success }]}>✓ Valid{orgId ? `  ·  Org: ${orgId.substring(0, 8)}…` : ''}</Text>}
+                  {!showKeyInput && keyStatus === 'invalid' && <Text style={[styles.metaText, { color: c.error }]}>{keyError}</Text>}
+                </View>
+                {!showKeyInput && (
+                  <TouchableOpacity style={styles.smallBtn} onPress={verifyKey} disabled={keyStatus === 'checking'}>
+                    {keyStatus === 'checking'
+                      ? <ActivityIndicator size="small" color={c.text} />
+                      : <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>Verify</Text>}
                   </TouchableOpacity>
                 )}
               </View>
-              {keyStatus === 'valid' && <Text style={[styles.metaText, { color: c.success, marginTop: 4 }]}>✓ Valid{orgId ? `  ·  Org: ${orgId.substring(0, 8)}…` : ''}</Text>}
-              {keyStatus === 'invalid' && <Text style={[styles.metaText, { color: c.error, marginTop: 4 }]}>{keyError}</Text>}
+              <View style={[styles.row, styles.borderTop]}>
+                <Ionicons name="wallet-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowLabel}>Credit Balance</Text>
+                  <Text style={styles.metaText}>console.anthropic.com</Text>
+                </View>
+                <TouchableOpacity style={styles.smallBtn} onPress={() => Linking.openURL('https://console.anthropic.com/settings/billing')}>
+                  <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>View ↗</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={[styles.row, styles.borderTop]}>
+                <Ionicons name="stats-chart-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowLabel}>Token Usage</Text>
+                  <Text style={styles.metaText}>console.anthropic.com</Text>
+                </View>
+                <TouchableOpacity style={styles.smallBtn} onPress={() => Linking.openURL('https://console.anthropic.com/settings/usage')}>
+                  <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>View ↗</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          )}
-
-          {/* Verify */}
-          <View style={[styles.row, styles.borderTop]}>
-            <Ionicons name="shield-checkmark-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Key Status</Text>
-              {!showKeyInput && keyStatus === null && <Text style={styles.metaText}>Tap to verify current key</Text>}
-              {!showKeyInput && keyStatus === 'checking' && <Text style={styles.metaText}>Verifying…</Text>}
-              {!showKeyInput && keyStatus === 'valid' && <Text style={[styles.metaText, { color: c.success }]}>✓ Valid{orgId ? `  ·  Org: ${orgId.substring(0, 8)}…` : ''}</Text>}
-              {!showKeyInput && keyStatus === 'invalid' && <Text style={[styles.metaText, { color: c.error }]}>{keyError}</Text>}
-            </View>
-            {!showKeyInput && (
-              <TouchableOpacity style={styles.smallBtn} onPress={verifyKey} disabled={keyStatus === 'checking'}>
-                {keyStatus === 'checking'
-                  ? <ActivityIndicator size="small" color={c.text} />
-                  : <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>Verify</Text>
-                }
-              </TouchableOpacity>
-            )}
           </View>
-
-          <View style={[styles.row, styles.borderTop]}>
-            <Ionicons name="wallet-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Credit Balance</Text>
-              <Text style={styles.metaText}>Console only — no API endpoint</Text>
-            </View>
-            <TouchableOpacity style={styles.smallBtn} onPress={() => Linking.openURL('https://console.anthropic.com/settings/billing')}>
-              <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>View ↗</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={[styles.row, styles.borderTop]}>
-            <Ionicons name="stats-chart-outline" size={18} color={c.textSecondary} style={styles.rowIcon} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Token Usage</Text>
-              <Text style={styles.metaText}>Full breakdown in console</Text>
-            </View>
-            <TouchableOpacity style={styles.smallBtn} onPress={() => Linking.openURL('https://console.anthropic.com/settings/usage')}>
-              <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>View ↗</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
+        );
+      })()}
 
       {/* ── Statements ── */}
       <View style={styles.section}>
