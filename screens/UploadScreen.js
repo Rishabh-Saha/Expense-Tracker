@@ -10,7 +10,7 @@ import { saveStatement, saveTransactions, isStatementDuplicate } from '../lib/da
 
 const STATUS = { PENDING: 'pending', PROCESSING: 'processing', DONE: 'done', ERROR: 'error', DUPLICATE: 'duplicate' };
 
-function FileRow({ file, onPressError, c }) {
+function FileRow({ file, onPressError, onRetry, c }) {
   const icon = {
     [STATUS.PENDING]: { name: 'time-outline', color: c.textSecondary },
     [STATUS.PROCESSING]: null,
@@ -37,15 +37,25 @@ function FileRow({ file, onPressError, c }) {
           <Text style={[styles_static.fileMeta, { color: c.warning }]}>Already uploaded — skipped</Text>
         )}
         {file.status === STATUS.ERROR && (
-          <Text style={[styles_static.fileMeta, { color: c.error }]}>
-            {file.error?.split('\n')[0]} · <Text style={{ textDecorationLine: 'underline' }}>tap for details</Text>
+          <Text style={[styles_static.fileMeta, { color: c.error }]} numberOfLines={1}>
+            {file.error?.split('\n')[0]}
           </Text>
         )}
       </View>
-      {file.status === STATUS.PROCESSING
-        ? <ActivityIndicator size="small" color={c.primary} />
-        : icon && <Ionicons name={icon.name} size={20} color={icon.color} />
-      }
+      {file.status === STATUS.PROCESSING && <ActivityIndicator size="small" color={c.primary} />}
+      {file.status === STATUS.ERROR && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
+          <TouchableOpacity onPress={onPressError} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="information-circle-outline" size={20} color={c.error} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onRetry} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="refresh-outline" size={20} color={c.primary} />
+          </TouchableOpacity>
+        </View>
+      )}
+      {file.status !== STATUS.PROCESSING && file.status !== STATUS.ERROR && icon && (
+        <Ionicons name={icon.name} size={20} color={icon.color} />
+      )}
     </TouchableOpacity>
   );
 }
@@ -94,6 +104,53 @@ export default function UploadScreen({ navigation }) {
     setAllDone(true);
   };
 
+  const retryFile = async (index) => {
+    const updated = [...files];
+    updated[index] = { ...updated[index], status: STATUS.PENDING, error: null };
+    setFiles(updated);
+    setAllDone(false);
+    setProcessing(true);
+    try {
+      updated[index] = { ...updated[index], status: STATUS.PROCESSING };
+      setFiles([...updated]);
+      const { cardName, transactions } = await extractTransactionsFromPDF(updated[index].uri);
+      const month = inferMonthFromTransactions(transactions) ?? new Date().toISOString().substring(0, 7);
+      const statementId = saveStatement({ filename: updated[index].name, month, cardName });
+      const { saved, skipped } = saveTransactions(statementId, transactions);
+      updated[index] = { ...updated[index], status: STATUS.DONE, txnCount: saved, skipped, month, cardName };
+    } catch (e) {
+      updated[index] = { ...updated[index], status: STATUS.ERROR, error: e.message };
+    }
+    setFiles([...updated]);
+    setProcessing(false);
+    setAllDone(true);
+  };
+
+  const retryAllFailed = async () => {
+    const reset = files.map(f => f.status === STATUS.ERROR ? { ...f, status: STATUS.PENDING, error: null } : f);
+    setFiles(reset);
+    setAllDone(false);
+    setProcessing(true);
+    const updated = [...reset];
+    for (let i = 0; i < updated.length; i++) {
+      if ([STATUS.DONE, STATUS.DUPLICATE].includes(updated[i].status)) continue;
+      updated[i] = { ...updated[i], status: STATUS.PROCESSING };
+      setFiles([...updated]);
+      try {
+        const { cardName, transactions } = await extractTransactionsFromPDF(updated[i].uri);
+        const month = inferMonthFromTransactions(transactions) ?? new Date().toISOString().substring(0, 7);
+        const statementId = saveStatement({ filename: updated[i].name, month, cardName });
+        const { saved, skipped } = saveTransactions(statementId, transactions);
+        updated[i] = { ...updated[i], status: STATUS.DONE, txnCount: saved, skipped, month, cardName };
+      } catch (e) {
+        updated[i] = { ...updated[i], status: STATUS.ERROR, error: e.message };
+      }
+      setFiles([...updated]);
+    }
+    setProcessing(false);
+    setAllDone(true);
+  };
+
   const doneCount = files.filter(f => f.status === STATUS.DONE).length;
   const errorCount = files.filter(f => f.status === STATUS.ERROR).length;
   const dupCount = files.filter(f => f.status === STATUS.DUPLICATE).length;
@@ -125,7 +182,12 @@ export default function UploadScreen({ navigation }) {
 
       {hasFiles && (
         <View style={styles.card}>
-          {files.map((f, i) => <FileRow key={i} file={f} c={c} onPressError={() => setErrorDetail(f.error)} />)}
+          {files.map((f, i) => (
+            <FileRow key={i} file={f} c={c}
+              onPressError={() => setErrorDetail(f.error)}
+              onRetry={() => retryFile(i)}
+            />
+          ))}
         </View>
       )}
 
@@ -155,10 +217,16 @@ export default function UploadScreen({ navigation }) {
           {errorCount > 0 && (
             <View style={styles.summaryRow}>
               <Ionicons name="alert-circle" size={20} color={c.error} />
-              <Text style={[styles.summaryText, { color: c.error }]}>{errorCount} failed — tap for details</Text>
+              <Text style={[styles.summaryText, { color: c.error }]}>{errorCount} failed</Text>
             </View>
           )}
           <View style={styles.summaryBtns}>
+            {errorCount > 0 && (
+              <TouchableOpacity style={[styles.retryBtn, { borderColor: c.error }]} onPress={retryAllFailed}>
+                <Ionicons name="refresh-outline" size={15} color={c.error} style={{ marginRight: 4 }} />
+                <Text style={[styles.newBtnText, { color: c.error }]}>Retry Failed</Text>
+              </TouchableOpacity>
+            )}
             {doneCount > 0 && (
               <TouchableOpacity style={styles.dashBtn} onPress={() => navigation.navigate('Dashboard')}>
                 <Text style={styles.dashBtnText}>View Dashboard</Text>
@@ -204,6 +272,7 @@ const createStyles = (c) => StyleSheet.create({
   dashBtn: { flex: 1, backgroundColor: c.primary, borderRadius: RADIUS.xl, paddingVertical: SPACING.sm + 2, alignItems: 'center' },
   dashBtnText: { color: c.text, fontWeight: '700', fontSize: FONTS.sm },
   newBtn: { flex: 1, backgroundColor: c.surfaceLight, borderRadius: RADIUS.xl, paddingVertical: SPACING.sm + 2, alignItems: 'center', borderWidth: 1, borderColor: c.border },
+  retryBtn: { flex: 1, backgroundColor: c.surfaceLight, borderRadius: RADIUS.xl, paddingVertical: SPACING.sm + 2, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', borderWidth: 1 },
   newBtnText: { fontWeight: '600', fontSize: FONTS.sm },
   modalOverlay: { flex: 1, backgroundColor: '#00000088', justifyContent: 'center', padding: SPACING.lg },
   modalCard: { backgroundColor: c.surface, borderRadius: RADIUS.lg, padding: SPACING.md, maxHeight: '70%' },
