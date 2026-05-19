@@ -6,9 +6,9 @@ import { FONTS, SPACING, RADIUS } from '../constants/theme';
 import { useTheme } from '../lib/ThemeContext';
 import { getCategoryColor, getCategoryEmoji } from '../constants/categories';
 import { extractTransactionsFromPDF, inferMonthFromTransactions } from '../lib/pdfParser';
-import { saveStatement, saveTransactions, isStatementDuplicate } from '../lib/database';
+import { saveStatement, saveTransactions, isStatementDuplicate, updateStatementMetadata } from '../lib/database';
 
-const STATUS = { PENDING: 'pending', PROCESSING: 'processing', DONE: 'done', ERROR: 'error', DUPLICATE: 'duplicate' };
+const STATUS = { PENDING: 'pending', PROCESSING: 'processing', DONE: 'done', ERROR: 'error', DUPLICATE: 'duplicate', REFRESHED: 'refreshed' };
 
 function FileRow({ file, onPressError, onRetry, c }) {
   const icon = {
@@ -17,6 +17,7 @@ function FileRow({ file, onPressError, onRetry, c }) {
     [STATUS.DONE]: { name: 'checkmark-circle', color: c.success },
     [STATUS.ERROR]: { name: 'alert-circle', color: c.error },
     [STATUS.DUPLICATE]: { name: 'copy-outline', color: c.warning },
+    [STATUS.REFRESHED]: { name: 'refresh-circle', color: c.success },
   }[file.status];
 
   return (
@@ -35,6 +36,9 @@ function FileRow({ file, onPressError, onRetry, c }) {
         )}
         {file.status === STATUS.DUPLICATE && (
           <Text style={[styles_static.fileMeta, { color: c.warning }]}>Already uploaded — skipped</Text>
+        )}
+        {file.status === STATUS.REFRESHED && (
+          <Text style={[styles_static.fileMeta, { color: c.success }]}>Metadata refreshed · {file.cardName}</Text>
         )}
         {file.status === STATUS.ERROR && (
           <Text style={[styles_static.fileMeta, { color: c.error }]} numberOfLines={1}>
@@ -82,19 +86,22 @@ export default function UploadScreen({ navigation }) {
     setProcessing(true);
     const updated = [...files];
     for (let i = 0; i < updated.length; i++) {
-      if ([STATUS.DONE, STATUS.DUPLICATE].includes(updated[i].status)) continue;
-      if (isStatementDuplicate(updated[i].name)) {
-        updated[i] = { ...updated[i], status: STATUS.DUPLICATE };
-        setFiles([...updated]); continue;
-      }
+      if ([STATUS.DONE, STATUS.DUPLICATE, STATUS.REFRESHED].includes(updated[i].status)) continue;
+      const isDuplicate = isStatementDuplicate(updated[i].name);
       updated[i] = { ...updated[i], status: STATUS.PROCESSING };
       setFiles([...updated]);
       try {
         const { cardName, creditLimit, statementBalance, transactions } = await extractTransactionsFromPDF(updated[i].uri);
         const month = inferMonthFromTransactions(transactions) ?? new Date().toISOString().substring(0, 7);
-        const statementId = saveStatement({ filename: updated[i].name, month, cardName, creditLimit, statementBalance });
-        const { saved, skipped } = saveTransactions(statementId, transactions);
-        updated[i] = { ...updated[i], status: STATUS.DONE, txnCount: saved, skipped, month, cardName };
+        if (isDuplicate) {
+          // Already uploaded — just refresh metadata (credit limit / balance)
+          updateStatementMetadata(updated[i].name, { creditLimit, statementBalance });
+          updated[i] = { ...updated[i], status: STATUS.REFRESHED, month, cardName };
+        } else {
+          const statementId = saveStatement({ filename: updated[i].name, month, cardName, creditLimit, statementBalance });
+          const { saved, skipped } = saveTransactions(statementId, transactions);
+          updated[i] = { ...updated[i], status: STATUS.DONE, txnCount: saved, skipped, month, cardName };
+        }
       } catch (e) {
         updated[i] = { ...updated[i], status: STATUS.ERROR, error: e.message };
       }
@@ -133,7 +140,7 @@ export default function UploadScreen({ navigation }) {
     setProcessing(true);
     const updated = [...reset];
     for (let i = 0; i < updated.length; i++) {
-      if ([STATUS.DONE, STATUS.DUPLICATE].includes(updated[i].status)) continue;
+      if ([STATUS.DONE, STATUS.DUPLICATE, STATUS.REFRESHED].includes(updated[i].status)) continue;
       updated[i] = { ...updated[i], status: STATUS.PROCESSING };
       setFiles([...updated]);
       try {
@@ -154,6 +161,7 @@ export default function UploadScreen({ navigation }) {
   const doneCount = files.filter(f => f.status === STATUS.DONE).length;
   const errorCount = files.filter(f => f.status === STATUS.ERROR).length;
   const dupCount = files.filter(f => f.status === STATUS.DUPLICATE).length;
+  const refreshedCount = files.filter(f => f.status === STATUS.REFRESHED).length;
   const hasFiles = files.length > 0;
 
   return (
@@ -206,6 +214,12 @@ export default function UploadScreen({ navigation }) {
             <View style={styles.summaryRow}>
               <Ionicons name="checkmark-circle" size={20} color={c.success} />
               <Text style={[styles.summaryText, { color: c.success }]}>{doneCount} statement{doneCount > 1 ? 's' : ''} saved</Text>
+            </View>
+          )}
+          {refreshedCount > 0 && (
+            <View style={styles.summaryRow}>
+              <Ionicons name="refresh-circle" size={20} color={c.success} />
+              <Text style={[styles.summaryText, { color: c.success }]}>{refreshedCount} metadata refreshed</Text>
             </View>
           )}
           {dupCount > 0 && (
