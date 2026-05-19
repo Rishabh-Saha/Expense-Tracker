@@ -161,7 +161,6 @@ export default function AnalyticsScreen() {
       const allTxns = getAllTransactions();
       setSubscriptions(detectSubscriptions(allTxns));
       setTopMerchants(getTopMerchants(12));
-      setCardStats(getCardStats());
     }, [])
   );
 
@@ -177,6 +176,7 @@ export default function AnalyticsScreen() {
     const { start, end } = getPeriodDates(periodId);
     setStats(getStatsForPeriod(start, end));
     setTxns(getTransactionsForPeriod(start, end));
+    setCardStats(getCardStats(start, end));
   };
 
   if (!selectedPeriod || !stats) {
