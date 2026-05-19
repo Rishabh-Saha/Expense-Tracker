@@ -48,6 +48,27 @@ export default function SettingsScreen() {
   const [openAIKeyStatus, setOpenAIKeyStatus] = useState(null);
   const [openAIKeyError, setOpenAIKeyError] = useState(null);
 
+  const [updateStatus, setUpdateStatus] = useState(null); // null | 'checking' | 'up-to-date' | 'updating'
+
+  const checkForUpdate = async () => {
+    if (!Updates.isEnabled) { Alert.alert('Updates disabled', 'OTA updates are not enabled in this build.'); return; }
+    setUpdateStatus('checking');
+    try {
+      const result = await Updates.checkForUpdateAsync();
+      if (result.isAvailable) {
+        setUpdateStatus('updating');
+        await Updates.fetchUpdateAsync();
+        await Updates.reloadAsync();
+      } else {
+        setUpdateStatus('up-to-date');
+        setTimeout(() => setUpdateStatus(null), 3000);
+      }
+    } catch (e) {
+      setUpdateStatus(null);
+      Alert.alert('Update check failed', e.message);
+    }
+  };
+
   useFocusEffect(useCallback(() => {
     setStatements(getAllStatements());
     getApiKey().then(k => setCurrentKey(k));
@@ -402,12 +423,34 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>About</Text>
         <View style={styles.card}>
-          {[['App', 'Expense Tracker'], ['Version', `1.0.0 (${Updates.updateId ? Updates.updateId.slice(0, 8) : 'embedded'})`], ['Storage', 'On-device (SQLite)'], ['AI Model', MODELS.find(m => m.id === selectedModelId)?.label ?? 'Claude Sonnet'], ['Data', 'Never leaves your device']].map(([label, value], i) => (
+          {[
+            ['App', 'Expense Tracker'],
+            ['Version', '1.0.0'],
+            ['Update', Updates.updateId ? Updates.updateId.slice(0, 8) : 'embedded'],
+            ['Storage', 'On-device (SQLite)'],
+            ['AI Model', MODELS.find(m => m.id === selectedModelId)?.label ?? 'Claude Sonnet'],
+            ['Data', 'Never leaves your device'],
+          ].map(([label, value], i) => (
             <View key={label} style={[styles.row, i > 0 && styles.borderTop]}>
               <Text style={styles.aboutLabel}>{label}</Text>
               <Text style={styles.aboutValue}>{value}</Text>
             </View>
           ))}
+          <View style={[styles.row, styles.borderTop]}>
+            <Text style={styles.aboutLabel}>
+              {updateStatus === 'checking' ? 'Checking…' : updateStatus === 'updating' ? 'Updating…' : updateStatus === 'up-to-date' ? 'Up to date ✓' : 'Updates'}
+            </Text>
+            <TouchableOpacity
+              onPress={checkForUpdate}
+              disabled={!!updateStatus}
+              style={[styles.smallBtn, { opacity: updateStatus ? 0.5 : 1 }]}
+            >
+              {updateStatus === 'checking' || updateStatus === 'updating'
+                ? <ActivityIndicator size="small" color={c.primaryLight} />
+                : <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>Check now</Text>
+              }
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </ScrollView>
