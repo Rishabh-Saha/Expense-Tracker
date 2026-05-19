@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import * as Updates from 'expo-updates';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Linking, ActivityIndicator, Switch, TextInput } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -401,7 +402,7 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>About</Text>
         <View style={styles.card}>
-          {[['App', 'Expense Tracker'], ['Storage', 'On-device (SQLite)'], ['AI Model', MODELS.find(m => m.id === selectedModelId)?.label ?? 'Claude Sonnet'], ['Data', 'Never leaves your device']].map(([label, value], i) => (
+          {[['App', 'Expense Tracker'], ['Version', `1.0.0 (${Updates.updateId ? Updates.updateId.slice(0, 8) : 'embedded'})`], ['Storage', 'On-device (SQLite)'], ['AI Model', MODELS.find(m => m.id === selectedModelId)?.label ?? 'Claude Sonnet'], ['Data', 'Never leaves your device']].map(([label, value], i) => (
             <View key={label} style={[styles.row, i > 0 && styles.borderTop]}>
               <Text style={styles.aboutLabel}>{label}</Text>
               <Text style={styles.aboutValue}>{value}</Text>
