@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FONTS, SPACING, RADIUS } from '../constants/theme';
 import { useTheme } from '../lib/ThemeContext';
 import { THEMES, THEME_ORDER } from '../constants/themes';
-import { getAllStatements, deleteStatement } from '../lib/database';
+import { getAllStatements, deleteStatement, clearAllData } from '../lib/database';
 import { useFeatures, FEATURES } from '../lib/FeatureContext';
 import { getApiKey, setApiKey, clearApiKeyOverride, getApiKeySource, maskKey } from '../lib/apiKey';
 import { MODELS } from '../constants/models';
@@ -449,6 +449,43 @@ export default function SettingsScreen() {
                 ? <ActivityIndicator size="small" color={c.primaryLight} />
                 : <Text style={[styles.smallBtnText, { color: c.primaryLight }]}>Check now</Text>
               }
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* ── Danger Zone ── */}
+      <View style={[styles.section, { marginBottom: SPACING.xl }]}>
+        <Text style={styles.sectionTitle}>Danger Zone</Text>
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <Ionicons name="trash-outline" size={18} color={c.error} style={styles.rowIcon} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: c.error }]}>Clear All Data</Text>
+              <Text style={styles.metaText}>Deletes all statements, transactions, insights and chat history</Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.smallBtn, { borderWidth: 1, borderColor: c.error }]}
+              onPress={() =>
+                Alert.alert(
+                  'Clear All Data',
+                  'This will permanently delete all uploaded statements, transactions, insights, and chat history. This cannot be undone.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete Everything',
+                      style: 'destructive',
+                      onPress: () => {
+                        clearAllData();
+                        setStatements([]);
+                        Alert.alert('Done', 'All data has been cleared.');
+                      },
+                    },
+                  ]
+                )
+              }
+            >
+              <Text style={[styles.smallBtnText, { color: c.error }]}>Clear</Text>
             </TouchableOpacity>
           </View>
         </View>
