@@ -10,7 +10,7 @@ import { getCategoryColor, getCategoryEmoji } from '../constants/categories';
 import {
   getAvailableMonths, getStatsForPeriod, getTransactionsForPeriod,
   getLastSixMonthsTotals, getAllTransactions,
-  getMerchantMonthlyTotals, getTopMerchants, getCardStats,
+  getMerchantMonthlyTotals, getTopMerchants, getCardStats, getUtilizationData,
 } from '../lib/database';
 import { getCardColor } from '../constants/cardColors';
 
@@ -147,6 +147,8 @@ export default function AnalyticsScreen() {
   const [subscriptions, setSubscriptions] = useState([]);
   const [cardStats, setCardStats] = useState([]);
 
+  const [utilization, setUtilization] = useState([]);
+
   const [merchantQuery, setMerchantQuery] = useState('');
   const [merchantData, setMerchantData] = useState(null);
   const [topMerchants, setTopMerchants] = useState([]);
@@ -161,6 +163,7 @@ export default function AnalyticsScreen() {
       const allTxns = getAllTransactions();
       setSubscriptions(detectSubscriptions(allTxns));
       setTopMerchants(getTopMerchants(12));
+      setUtilization(getUtilizationData());
     }, [])
   );
 
@@ -501,6 +504,44 @@ export default function AnalyticsScreen() {
         </View>
       )}
 
+      {/* ── Credit Utilization ── */}
+      {utilization.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Credit Utilization</Text>
+          <View style={styles.card}>
+            {utilization.map((u, i) => {
+              const pct = Math.min((u.statement_balance / u.credit_limit) * 100, 100);
+              const color = pct < 30 ? c.success : pct < 70 ? c.warning : c.error;
+              return (
+                <View key={i} style={[styles.utilRow, i > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
+                  <View style={styles.utilHeader}>
+                    <Text style={styles.utilCard} numberOfLines={1}>{u.card_name ?? 'Unknown Card'}</Text>
+                    <Text style={[styles.utilPct, { color }]}>{pct.toFixed(1)}%</Text>
+                  </View>
+                  <View style={styles.utilTrack}>
+                    <View style={[styles.utilFill, { width: `${pct}%`, backgroundColor: color }]} />
+                    {pct < 95 && (
+                      <View style={[styles.utilThreshold, { left: '30%', backgroundColor: c.border }]} />
+                    )}
+                  </View>
+                  <View style={styles.utilMeta}>
+                    <Text style={styles.utilMetaText}>${u.statement_balance?.toFixed(0)} of ${u.credit_limit?.toLocaleString()} · {u.month}</Text>
+                    <Text style={[styles.utilMetaText, { color }]}>
+                      {pct < 30 ? 'Healthy' : pct < 70 ? 'Moderate' : 'High'}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+            <View style={styles.utilLegend}>
+              <View style={styles.utilLegendItem}><View style={[styles.utilLegendDot, { backgroundColor: c.success }]} /><Text style={styles.utilLegendText}>{'<30% Healthy'}</Text></View>
+              <View style={styles.utilLegendItem}><View style={[styles.utilLegendDot, { backgroundColor: c.warning }]} /><Text style={styles.utilLegendText}>30–70% Moderate</Text></View>
+              <View style={styles.utilLegendItem}><View style={[styles.utilLegendDot, { backgroundColor: c.error }]} /><Text style={styles.utilLegendText}>{'>70% High'}</Text></View>
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* ── Breakdown ── */}
       {stats.totals?.length > 0 && (
         <View style={styles.section}>
@@ -605,6 +646,19 @@ const createStyles = (c) => StyleSheet.create({
   cardBarTrack: { height: 6, backgroundColor: c.border, borderRadius: 3, overflow: 'hidden', marginBottom: 4 },
   cardBarFill: { height: 6, borderRadius: 3 },
   cardRowMeta: { color: c.textSecondary, fontSize: FONTS.xs },
+  utilRow: { paddingVertical: SPACING.md },
+  utilHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.xs },
+  utilCard: { color: c.text, fontSize: FONTS.sm, fontWeight: '600', flex: 1, marginRight: SPACING.sm },
+  utilPct: { fontSize: FONTS.md, fontWeight: '800' },
+  utilTrack: { height: 8, backgroundColor: c.border, borderRadius: 4, overflow: 'hidden', marginBottom: SPACING.xs, position: 'relative' },
+  utilFill: { height: 8, borderRadius: 4 },
+  utilThreshold: { position: 'absolute', top: 0, width: 1.5, height: 8 },
+  utilMeta: { flexDirection: 'row', justifyContent: 'space-between' },
+  utilMetaText: { color: c.textSecondary, fontSize: FONTS.xs },
+  utilLegend: { flexDirection: 'row', justifyContent: 'space-around', marginTop: SPACING.md, paddingTop: SPACING.sm, borderTopWidth: 1, borderTopColor: c.border },
+  utilLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  utilLegendDot: { width: 8, height: 8, borderRadius: 4 },
+  utilLegendText: { color: c.textTertiary, fontSize: FONTS.xs },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: c.background },
   emptyText: { color: c.textSecondary, fontSize: FONTS.md },
 });

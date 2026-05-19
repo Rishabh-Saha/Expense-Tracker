@@ -90,9 +90,9 @@ export default function UploadScreen({ navigation }) {
       updated[i] = { ...updated[i], status: STATUS.PROCESSING };
       setFiles([...updated]);
       try {
-        const { cardName, transactions } = await extractTransactionsFromPDF(updated[i].uri);
+        const { cardName, creditLimit, statementBalance, transactions } = await extractTransactionsFromPDF(updated[i].uri);
         const month = inferMonthFromTransactions(transactions) ?? new Date().toISOString().substring(0, 7);
-        const statementId = saveStatement({ filename: updated[i].name, month, cardName });
+        const statementId = saveStatement({ filename: updated[i].name, month, cardName, creditLimit, statementBalance });
         const { saved, skipped } = saveTransactions(statementId, transactions);
         updated[i] = { ...updated[i], status: STATUS.DONE, txnCount: saved, skipped, month, cardName };
       } catch (e) {
@@ -113,9 +113,9 @@ export default function UploadScreen({ navigation }) {
     try {
       updated[index] = { ...updated[index], status: STATUS.PROCESSING };
       setFiles([...updated]);
-      const { cardName, transactions } = await extractTransactionsFromPDF(updated[index].uri);
+      const { cardName, creditLimit, statementBalance, transactions } = await extractTransactionsFromPDF(updated[index].uri);
       const month = inferMonthFromTransactions(transactions) ?? new Date().toISOString().substring(0, 7);
-      const statementId = saveStatement({ filename: updated[index].name, month, cardName });
+      const statementId = saveStatement({ filename: updated[index].name, month, cardName, creditLimit, statementBalance });
       const { saved, skipped } = saveTransactions(statementId, transactions);
       updated[index] = { ...updated[index], status: STATUS.DONE, txnCount: saved, skipped, month, cardName };
     } catch (e) {
@@ -137,9 +137,9 @@ export default function UploadScreen({ navigation }) {
       updated[i] = { ...updated[i], status: STATUS.PROCESSING };
       setFiles([...updated]);
       try {
-        const { cardName, transactions } = await extractTransactionsFromPDF(updated[i].uri);
+        const { cardName, creditLimit, statementBalance, transactions } = await extractTransactionsFromPDF(updated[i].uri);
         const month = inferMonthFromTransactions(transactions) ?? new Date().toISOString().substring(0, 7);
-        const statementId = saveStatement({ filename: updated[i].name, month, cardName });
+        const statementId = saveStatement({ filename: updated[i].name, month, cardName, creditLimit, statementBalance });
         const { saved, skipped } = saveTransactions(statementId, transactions);
         updated[i] = { ...updated[i], status: STATUS.DONE, txnCount: saved, skipped, month, cardName };
       } catch (e) {
