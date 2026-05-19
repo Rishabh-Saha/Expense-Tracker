@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -42,8 +43,18 @@ async function checkForUpdate() {
 function ThemedApp() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const appState = useRef(AppState.currentState);
 
-  useEffect(() => { checkForUpdate(); }, []);
+  useEffect(() => {
+    checkForUpdate();
+    const sub = AppState.addEventListener('change', next => {
+      if (appState.current.match(/inactive|background/) && next === 'active') {
+        checkForUpdate();
+      }
+      appState.current = next;
+    });
+    return () => sub.remove();
+  }, []);
 
   return (
     <>
